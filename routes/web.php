@@ -20,17 +20,19 @@ Route::get('/', function () {
     return response()->json(['name' => 'OrderRave Solutions Ltd',  'version' => '1.0.0', 'description' => 'OrderRave API : Bring your Restaurant Menu to Life with OrderRave', 'message' => 'Sign up to get started: https://orderrave.ng',], 202);
 });
 
+Route::get('/wallet/callback', [App\Http\Controllers\WalletController::class, 'handlePaymentCallback']);
 
-Route::get('/authenticated', function (){
-    return response()->json(['message' => 'Unauthorized'], 401);
-});
 
-Route::get('/email/confirm', [App\Http\Controllers\AuthController::class, 'confirmEmail'])->name('email.confirm');
-// Account security settings
-Route::get('/account/security', [App\Http\Controllers\AccountSecurityController::class, 'showSecuritySettings'])->name('account.security');
+// Route::get('/authenticated', function (){
+//     return response()->json(['message' => 'Unauthorized'], 401);
+// });
 
-// Update password
-Route::post('/account/update-password', [App\Http\Controllers\AccountSecurityController::class, 'updatePassword'])->name('account.update.password');
+// Route::get('/email/confirm', [App\Http\Controllers\AuthController::class, 'confirmEmail'])->name('email.confirm');
+// // Account security settings
+// Route::get('/account/security', [App\Http\Controllers\AccountSecurityController::class, 'showSecuritySettings'])->name('account.security');
+
+// // Update password
+// Route::post('/account/update-password', [App\Http\Controllers\AccountSecurityController::class, 'updatePassword'])->name('account.update.password');
 
 
 // Route::get('/test-image', function () {

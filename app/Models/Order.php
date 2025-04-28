@@ -25,12 +25,20 @@ class Order extends Model
         'hotel_room',
         'payment_status',
         'tracking_number',
+        'commission',
+        'net_amount',
+        'commission_processed'
     ];
 
 
     public function items()
     {
         return $this->hasMany(OrderItem::class);
+    }
+
+    public function rating()
+    {
+        return $this->hasOne(Rating::class);
     }
 
 

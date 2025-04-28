@@ -33,11 +33,26 @@ class Shop extends Model
         'free_trial',
     ];
 
-    protected $appends = ['image_url'];
+    protected $appends = ['image_url', 'average_rating', 'ratings_count'];
 
     protected $casts = [
         'services_rendered' => 'array',
     ];
+
+    // public function ratings()
+    // {
+    //     return $this->hasMany(Rating::class);
+    // }
+
+    public function getAverageRatingAttribute()
+    {
+        return $this->ratings()->avg('rating') ?? 0;
+    }
+
+    public function getRatingsCountAttribute()
+    {
+        return $this->ratings()->count();
+    }
 
     protected static function boot()
     {

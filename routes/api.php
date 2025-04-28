@@ -13,6 +13,9 @@ use App\Http\Controllers\TransactionController;
 use App\Http\Controllers\SalesOverviewController;
 use App\Http\Controllers\SubscriptionController;
 use App\Http\Controllers\ReferralController;
+use App\Http\Controllers\WalletController;
+use App\Http\Controllers\RatingController;
+
 
 
 /*
@@ -30,8 +33,26 @@ Route::group(['middleware' => 'cors'], function () {
     Route::middleware('auth:api')->get('/user', function (Request $request) {
         return $request->user();
     });
+    
+    Route::middleware('auth:sanctum')->group(function () {
+        Route::get('/wallet', [WalletController::class, 'index']);
+        Route::post('/wallet/deposit', [WalletController::class, 'deposit']);
+        Route::post('/wallet/withdraw', [WalletController::class, 'withdraw']);
+    });
+
+    Route::get('/shops/{shop}/ratings', [RatingController::class, 'index']);
+    
+    Route::middleware('auth:sanctum')->group(function () {
+        Route::post('/orders/{order}/rate', [RatingController::class, 'store']);
+        Route::get('/ratings/{rating}', [RatingController::class, 'show']);
+        Route::put('/ratings/{rating}', [RatingController::class, 'update']);
+    });
+
+    // Route::get('/wallet/callback', [WalletController::class, 'handlePaymentCallback']);
 
     Route::middleware('auth:sanctum')->post('/change-password', [UserController::class, 'changePassword']);
+
+    Route::post('/change-password-from-token', [UserController::class, 'changePasswordFromToken']);
 
     // Email Notification Routes
     Route::get('/verify-email/{token}', [AuthController::class, 'verifyEmail'])->name('verification.verify');

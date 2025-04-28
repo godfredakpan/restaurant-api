@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\Shop;
+use App\Models\Wallet;
 use App\Models\Subscription;
 use Illuminate\Support\Facades\File; // Import File facade
 
@@ -11,10 +12,11 @@ use Illuminate\Support\Facades\File; // Import File facade
 class ShopController extends Controller
 {
     public function index() {
-        $shops = Shop::select('id', 'shop_name', 'slug', 'banner',  'opening_time', 'closing_time', 'category', 'rating', 'phone_number', 'address', 'city', 'state', 'country', 'description', 'services_rendered', 'account_number', 'account_name', 'account_bank', 'status')
+        $shops = Shop::select('id', 'shop_name', 'slug', 'banner', 'opening_time', 'closing_time', 'category', 'rating', 'phone_number', 'address', 'city', 'state', 'country', 'description', 'services_rendered', 'account_number', 'account_name', 'account_bank', 'status')
+            ->withCount('ratings') 
+            ->withAvg('ratings', 'rating') 
+            ->where('status', 'active')
             ->get();
-
-        $shops = $shops->where('status', "active");
     
         return response()->json($shops);
     }
@@ -55,6 +57,12 @@ class ShopController extends Controller
 
         $subscription = Subscription::where('shop_id', $shop->id)->first();
         $shop->plan = $subscription;
+
+        if ($subscription && $subscription->payment_plan === 'free') {
+            $shop->wallet = Wallet::where('user_id', $shop->admin_id)->first();
+        } else {
+            $shop->wallet = null; 
+        }
     
         $shop->menuItems->map(function ($menuItem) {
             $menuItem->category_name = $menuItem->category->name ?? null;

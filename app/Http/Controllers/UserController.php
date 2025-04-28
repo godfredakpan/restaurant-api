@@ -199,5 +199,17 @@ class UserController extends Controller
 
         return response()->json(['message' => 'Password updated successfully'], 200);
     }
+
+    // change password from token
+    public function changePasswordFromToken(Request $request) {
+        $user = User::where('email_verification_token', $request->token)->first();
+        if (!$user) {
+            return response()->json(['message' => 'Invalid token'], 400);
+        }
+        $user->password = Hash::make($request->password);
+        $user->email_verification_token = null;
+        $user->save();
+        return response()->json(['message' => 'Password updated successfully', 'success' => true, 'user' => $user], 200);
+    }
     
 }

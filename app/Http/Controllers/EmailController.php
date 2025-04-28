@@ -132,18 +132,10 @@ class EmailController extends Controller
         $user = User::where('email', $email)->first();
         if($user == null) return response()->json(['message' => 'User not found!'], 404);
         $token = Str::random(60);
-        $user->password_reset_token = $token;
+        $user->email_verification_token = $token;
         $user->save();
 
-        
-        $subject = 'Password Reset';
-        $messageBody = 'Please reset your password by clicking the button below.';
-        $actionUrl = route('password.reset', ['token' => $user->password_reset_token]); // Assuming the token is already set in the user model
-        $actionText = 'Reset Password';
-
-        Mail::to($user->email)->send(new OrderRaveNotificationMail($subject, $messageBody, $actionUrl, $actionText, $user));
-
-        return response()->json(['message' => 'Password reset email sent successfully!']);
+        return response()->json(['message' => 'Password reset email sent successfully!', 'token' => $user->email_verification_token]);
     }
 
     // new bank account generated
