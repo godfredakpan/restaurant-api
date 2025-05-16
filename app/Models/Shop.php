@@ -109,4 +109,29 @@ class Shop extends Model
     {
         return $this->hasOne(Subscription::class);
     }
+
+    public function menuViews()
+    {
+        return $this->hasMany(MenuView::class);
+    }
+
+    public function getPopularMenuItems()
+    {
+        return MenuItem::where('shop_id', $this->id)
+            ->get()
+            ->sortByDesc(function ($menuItem) {
+                return $menuItem->totalSold();
+            })
+            ->take(10)
+            ->values()
+            ->map(function ($menuItem) {
+                return [
+                    'name' => $menuItem->name,
+                    'image' => $menuItem->image_url,
+                    'price' => $menuItem->price,
+                    'total_sold' => $menuItem->totalSold(),
+                    'category' => $menuItem->category->name
+                ];
+            });
+    }
 }

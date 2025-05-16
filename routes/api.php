@@ -16,6 +16,9 @@ use App\Http\Controllers\ReferralController;
 use App\Http\Controllers\WalletController;
 use App\Http\Controllers\RatingController;
 use App\Http\Controllers\RecommendationController;
+use App\Http\Controllers\AnalyticsController;
+
+
 
 
 
@@ -150,6 +153,11 @@ Route::group(['middleware' => 'cors'], function () {
 
 
     Route::get('/stores', [ShopController::class, 'index']);
+
+    Route::post('/stores/{store}/menu-views', [ShopController::class, 'trackMenuView'])
+    ->middleware(['throttle:60,1']); 
+
+    Route::get('/analytics/shop/{shop}', [AnalyticsController::class, 'getShopAnalytics']);
 
     Route::get('/market-stores', [ShopController::class, 'markets']);
 

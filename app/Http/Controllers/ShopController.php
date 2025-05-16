@@ -5,8 +5,11 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\Shop;
 use App\Models\Wallet;
+use App\Models\MenuView;
 use App\Models\Subscription;
-use Illuminate\Support\Facades\File; // Import File facade
+use Illuminate\Support\Facades\File; 
+use Illuminate\Support\Facades\RateLimiter;
+use Jenssegers\Agent\Agent;
 
 
 class ShopController extends Controller
@@ -42,18 +45,68 @@ class ShopController extends Controller
         return response()->json($shops);
     }
 
-    // public function show($slug) {
-    //     $shop = Shop::where('slug', $slug)->with('menuItems')->with(['menuItems.category'])->first();
-    //     if (!$shop) {
-    //         return response()->json(['message' => 'Shop not found', 'status' => 404], 201);
-    //     }
-    //     $shop->menuItems->map(function ($menuItem) {
-    //         $menuItem->category_name = $menuItem->category->name ?? null; 
-    //         unset($menuItem->category); 
-    //         return $menuItem;
-    //     });
-    //     return response()->json($shop);
-    // }
+   public function trackMenuView(Request $request, Shop $store)
+    {
+        $throttleKey = 'menu_view:'.($request->user()?->id ?: $request->ip());
+        
+        // Rate limiting: 10 views per minute per user/IP
+        if (RateLimiter::tooManyAttempts($throttleKey, 10)) {
+            return response()->json(['message' => 'Too many requests'], 429);
+        }
+        
+        RateLimiter::hit($throttleKey, 60);
+        
+        // Check for existing view from this IP in the last 1 hour
+        $ipExists = MenuView::where('shop_id', $store->id)
+            ->where('ip_address', $request->ip())
+            ->where('created_at', '>', now()->subHour())
+            ->exists();
+        
+        // Check for unique view from session (if available)
+        $sessionExists = false;
+        if ($request->hasSession()) {
+            $sessionExists = MenuView::where('shop_id', $store->id)
+                ->where('session_id', $request->session()->getId())
+                ->where('created_at', '>', now()->subHour())
+                ->exists();
+        }
+        
+        // Only record if neither IP nor session has viewed in last 1 hour
+        if (!$ipExists && !$sessionExists) {
+            $view = new MenuView([
+                'shop_id' => $store->id,
+                'user_id' => $request->user()?->id,
+                'ip_address' => $request->ip(),
+                'session_id' => $request->hasSession() ? $request->session()->getId() : null,
+                'user_agent' => $request->userAgent(),
+            ]);
+            
+            $store->menuViews()->save($view);
+            
+            $isUnique = true;
+        } else {
+            $isUnique = false;
+        }
+        
+        return response()->json([
+            'message' => 'Menu view tracked successfully',
+            'total_views' => $store->menuViews()->count(),
+            'unique_views' => $this->getUniqueViewsCount($store),
+            'is_unique' => $isUnique,
+            'already_viewed' => $ipExists || $sessionExists,
+        ]);
+    }
+
+    
+    protected function getUniqueViewsCount(Shop $store)
+    {
+        return $store->menuViews()
+            ->select('session_id')
+            ->groupBy('session_id')
+            ->get()
+            ->count();
+    }
+    
     public function show($slug) {
         $shop = Shop::where('slug', $slug)
             ->with(['menuItems' => function($query) {
