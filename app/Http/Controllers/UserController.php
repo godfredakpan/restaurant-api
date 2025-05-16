@@ -10,6 +10,7 @@ use App\Models\ReferralHistory;
 use App\Models\Subscription;
 use Illuminate\Support\Facades\Hash;
 use Str;
+use DB;
 
 class UserController extends Controller
 {
@@ -17,6 +18,7 @@ class UserController extends Controller
     {
         $email = $request->input('email');
         $password = $request->input('password');
+        $phone = $request->input('phone');
 
         $user = User::where('email', $email)->first();
 
@@ -43,11 +45,19 @@ class UserController extends Controller
             $newUser = User::create([
                 'email' => $email,
                 'password' => bcrypt($password),
+                'phone_number' => $phone,
                 'name' => $request->input('name') ?? "Guest",
                 'role' => 'user',
             ]);
 
             if ($newUser) {
+                $refCode = strtoupper(substr(md5(time()), 0, 8));
+                Referral::create([
+                    'name' => $request->name,
+                    'phone' => $request->phone,
+                    'location' => "Nigeria",
+                    'ref_code' => $refCode,
+                ]);
                 // Generate a token for the new user
                 $token = $newUser->createToken('user-token')->plainTextToken;
                 return response()->json([
@@ -68,24 +78,28 @@ class UserController extends Controller
 
 
     public function registerShop(Request $request) {
-        
-        if (User::where('email', $request->email)->exists()) {
-            return response()->json(['message' => 'User already exists'], 201);
-        }
+    // Check if user exists first
+    if (User::where('email', $request->email)->exists()) {
+        return response()->json(['message' => 'User already exists'], 201);
+    }
 
-        $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'email' => 'required|string|email|max:255|unique:users',
-            'password' => 'required|string|min:8',
-            'shop_name' => 'required|string',
-            'address' => 'nullable|string',
-            'city' => 'nullable|string',
-            'state' => 'nullable|string',
-            'phone' => 'nullable|string',
-            'description' => 'nullable|string',
-            'banner' => 'nullable|image|mimes:jpeg,png,jpg|max:2048',
-        ]);
+    $validated = $request->validate([
+        'name' => 'required|string|max:255',
+        'email' => 'required|string|email|max:255|unique:users',
+        'password' => 'required|string|min:8',
+        'shop_name' => 'required|string',
+        'address' => 'nullable|string',
+        'city' => 'nullable|string',
+        'state' => 'nullable|string',
+        'phone' => 'nullable|string',
+        'description' => 'nullable|string',
+        'banner' => 'nullable|image|mimes:jpeg,png,jpg|max:2048',
+    ]);
 
+    // Start database transaction
+    DB::beginTransaction();
+
+    try {
         $bannerPath = null;
         if ($request->hasFile('banner')) {
             $banner = $request->file('banner');
@@ -137,11 +151,34 @@ class UserController extends Controller
         $user->email_verification_token = $token;
         $user->save();
 
-        $notificationController = new EmailController();
-        $notificationController->sendSignupEmail($user->id);
-    
-        return response()->json(['token' => $token, 'shop' => $shopData, 'user' => $user]);
+        // Try to send email but don't let it fail the registration
+        try {
+            // $notificationController = new EmailController();
+            // $notificationController->sendSignupEmail($user->id);
+        } catch (\Exception $emailException) {
+            // Log the email error but continue with registration
+            \Log::error('Failed to send registration email: ' . $emailException->getMessage());
+        }
+
+        // Commit the transaction if everything is successful
+        DB::commit();
+
+        return response()->json([
+            'token' => $token, 
+            'shop' => $shopData, 
+            'user' => $user,
+            'message' => 'Registration successful. ' . 
+                        (isset($emailException) ? 'Email verification may not have been sent.' : ''),
+            'status' => 201,
+        ]);
+
+    } catch (\Exception $e) {
+        // Rollback the transaction on error
+        DB::rollBack();
+        \Log::error('Registration failed: ' . $e->getMessage());
+        return response()->json(['message' => 'Registration failed. Please try again.'], 500);
     }
+}
     
 
     // login    

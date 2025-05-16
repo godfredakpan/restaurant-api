@@ -167,7 +167,7 @@ class OrderController extends Controller
             'order_total' => $orderTotal,
             'commission' => $this->hasFreeSubscription($shop) ? $orderTotal * 0.05 : 0,
             'net_amount' => $this->hasFreeSubscription($shop) ? $orderTotal * 0.95 : $orderTotal,
-            'additional_notes' => $validated['note'],
+            'additional_notes' => $validated['note'] ?? '',
             'address' => $validated['address'],
             'user_phone' => $validated['phone'],
             'user_name' => $validated['name'],
@@ -337,6 +337,37 @@ class OrderController extends Controller
 
         return response()->json($order);
     }
+
+    public function getOrderById($orderId)
+    {
+        $order = Order::where('id', $orderId)
+            ->with([
+                'items.menuItem' => function ($query) {
+                    $query->select('id', 'name', 'image_path', 'price');
+                },
+                'rating',
+                'shop' => function ($query) {
+                    $query->select('id', 'shop_name', 'address');
+                }
+            ])
+            ->first(); 
+
+        if (!$order) {
+            return response()->json(['error' => 'Order not found'], 404);
+        }
+
+        $order->items->map(function ($item) {
+            $item->product_name = $item->menuItem->name;
+            $item->product_image = $item->menuItem->image_url;
+            $item->product_amount = $item->menuItem->price;
+            $item->quantity = $item->quantity;
+            unset($item->menuItem); 
+            return $item;
+        });
+
+        return response()->json($order);
+    }
+
     
 
     public function getHomeOrders() {

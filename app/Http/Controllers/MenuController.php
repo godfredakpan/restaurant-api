@@ -200,6 +200,81 @@ class MenuController extends Controller
     }
 
 
+    public function searchMenu(Request $request)
+    {
+        $request->validate([
+            'query' => 'nullable|string|max:255',
+            'category_id' => 'nullable|exists:categories,id'
+        ]);
+
+        // log the request data
+        \Log::info('Search Menu Request:', [
+            'query' => $request->query('query'),
+            'category_id' => $request->query('category_id')
+        ]);
+
+        $query = MenuItem::with(['category', 'shop'])
+            ->when($request->query('query'), function ($q) use ($request) {
+                $searchTerm = '%' . $request->query('query') . '%';
+                $q->where(function ($query) use ($searchTerm) {
+                    $query->where('name', 'like', $searchTerm)
+                        ->orWhere('description', 'like', $searchTerm);
+                });
+            })
+            ->when($request->query('category_id'), function ($q) use ($request) {
+                $q->where('category_id', $request->query('category_id'));
+            })
+            ->where('status', 'active');
+
+        $results = $query->get()->groupBy('shop_id')->map(function ($items, $shopId) {
+            $shop = $items->first()->shop;
+            return [
+                'shop_id' => $shop->id,
+                'slug' => $shop->slug,
+                'shop_name' => $shop->shop_name,
+                'shop_location' => $shop->city,
+                'shop_image' => $shop->image_url,
+                'bank_details' => [
+                    'account_name' => $shop->account_name,
+                    'account_number' => $shop->account_number,
+                    'account_bank' => $shop->account_bank,
+                ],
+                'menu_items' => $items->map(function ($item) {
+                    return [
+                        'id' => $item->id,
+                        'name' => $item->name,
+                        'description' => $item->description,
+                        'price' => $item->price,
+                        'image_url' => $item->image_url,
+                        'processing_time' => $item->processing_time,
+                        'category' => $item->category ? $item->category->name : null,
+                        'category_id' => $item->category_id,
+                    ];
+                })
+            ];
+        })->values();
+
+        return response()->json($results);
+    }
+
+
+    public function getCategoriesWithMenuItems() {
+        $categories = Category::with(['menuItems' => function($query) {
+            $query->where('status', 'active');
+        }])->has('menuItems')->get();
+
+        $categories->each(function ($category) {
+            $category->menu_items_count = $category->menuItems->count();
+        });
+
+        \Log::info('Categories with Menu Items:', [
+            'categories' => $categories
+        ]);
+
+        return response()->json($categories);
+    }
+
+
     public function createCategory(Request $request) {
         $user = auth()->user();
         $validated = $request->validate([

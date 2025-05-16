@@ -75,4 +75,15 @@ class ReferralController extends Controller
             'referralHistory' => $referralHistory,
         ]);
     }
+
+    public function checkReferralExists($phone)
+    {
+        $referral = Referral::where('phone', $phone)->first();
+        if ($referral) {
+            $referralHistory = $referral->referralHistories()->with(['shop', 'shop.subscription'])->get();
+
+            return response()->json(['valid' => true, 'referrer' => $referral, 'referralHistory' => $referralHistory]);
+        }
+        return response()->json(['valid' => false]);
+    }
 }

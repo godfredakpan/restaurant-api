@@ -15,6 +15,7 @@ use App\Http\Controllers\SubscriptionController;
 use App\Http\Controllers\ReferralController;
 use App\Http\Controllers\WalletController;
 use App\Http\Controllers\RatingController;
+use App\Http\Controllers\RecommendationController;
 
 
 
@@ -121,6 +122,8 @@ Route::group(['middleware' => 'cors'], function () {
 
     Route::get('/orders/tracking/{trackingId}', [OrderController::class, 'getOrderByTrackingId']);
 
+    Route::get('/orders/order/{orderId}', [OrderController::class, 'getOrderById']);
+
     Route::prefix('orders')->middleware('auth:sanctum', 'role:admin', 'shop.active')->group(function () {
         Route::get('/', [OrderController::class, 'getAllOrders']);
         Route::get('/home', [OrderController::class, 'getHomeOrders']);
@@ -143,10 +146,21 @@ Route::group(['middleware' => 'cors'], function () {
     Route::get('/referral/check/{code}', [ReferralController::class, 'checkReferralCode']);
     Route::get('/user-referrals/{phone}', [ReferralController::class, 'getUserReferralsByPhone']);
     Route::get('/referrals/{id}', [ReferralController::class, 'getUserRefs']);
+    Route::get('/referrer/check/{phone}', [ReferralController::class, 'checkReferralExists']);
+
 
     Route::get('/stores', [ShopController::class, 'index']);
+
+    Route::get('/market-stores', [ShopController::class, 'markets']);
 
     Route::get('/all-stores', [ShopController::class, 'allStores']);
 
     Route::get('/stores/{slug}', [ShopController::class, 'show']);
+
+    Route::middleware('auth:sanctum')->get('/menu/search', [MenuController::class, 'searchMenu']);
+
+    Route::middleware('auth:sanctum')->get('/menu/categories', [MenuController::class, 'getCategoriesWithMenuItems']);
+
+    Route::get('/recommendations/time-based', [RecommendationController::class, 'getTimeBasedRecommendations']);
+
 });

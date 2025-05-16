@@ -39,10 +39,10 @@ class Shop extends Model
         'services_rendered' => 'array',
     ];
 
-    // public function ratings()
-    // {
-    //     return $this->hasMany(Rating::class);
-    // }
+    public function ratings()
+    {
+        return $this->hasMany(Rating::class);
+    }
 
     public function getAverageRatingAttribute()
     {

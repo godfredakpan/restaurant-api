@@ -21,6 +21,16 @@ class ShopController extends Controller
         return response()->json($shops);
     }
 
+    public function markets() {
+        $markets = Shop::where('category', 'Market')
+            ->with(['menuItems' => function($query) {
+                $query->select('id', 'shop_id', 'name', 'image_path', 'price', 'description');
+            }])
+            ->get();
+        
+        return response()->json($markets);
+    }
+
     // allStores
     public function allStores() {
         $shops = Shop::all();

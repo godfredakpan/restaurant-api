@@ -19,8 +19,18 @@ class MenuItem extends Model
         return $this->belongsTo(Category::class);
     }
 
+    public function shop()
+    {
+        return $this->belongsTo(Shop::class);
+    }
+    
+    public function orderItems()
+    {
+        return $this->hasMany(OrderItem::class);
+    }
+
     public function getImageUrlAttribute() {
-        return asset($this->image_path);
+        return $this->image_path ? asset($this->image_path) : asset('/images/food-default.jpg');
     }
 
     // total sold

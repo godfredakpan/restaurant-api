@@ -34,4 +34,14 @@ class Category extends Model
             $category->slug = $slug;
         });
     }
+
+    public function shop()
+    {
+        return $this->belongsTo(Shop::class);
+    }
+
+    public function menuItems()
+    {
+        return $this->hasMany(MenuItem::class);
+    }
 }
