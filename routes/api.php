@@ -17,7 +17,7 @@ use App\Http\Controllers\WalletController;
 use App\Http\Controllers\RatingController;
 use App\Http\Controllers\RecommendationController;
 use App\Http\Controllers\AnalyticsController;
-
+use App\Http\Controllers\PromoCampaignController;
 
 
 
@@ -143,6 +143,21 @@ Route::group(['middleware' => 'cors'], function () {
         Route::post('register-shop', [UserController::class, 'registerShop']);
         Route::post('login', [UserController::class, 'login']);
     });
+
+    Route::prefix('campaigns')->middleware('auth:sanctum', 'role:admin', 'shop.active')->group(function () {
+        // get campaigns
+        Route::get('/', [PromoCampaignController::class, 'index']);
+        // create campaign
+        Route::post('/create', [PromoCampaignController::class, 'store']);
+        // update campaign
+        Route::put('/update/{promoCampaign}', [PromoCampaignController::class, 'update']);
+        // delete campaign
+        Route::delete('/delete/{promoCampaign}', [PromoCampaignController::class, 'destroy']);
+        // get single campaign
+        Route::get('/campaign/{id}', [PromoCampaignController::class, 'show']);
+    });
+
+    Route::post('/promo-code/validate', [PromoCampaignController::class, 'isValidPromoCode']);
 
     Route::post('/referrer/register', [ReferralController::class, 'registerReferrer']);
     Route::get('/referrals', [ReferralController::class, 'getReferrals']);

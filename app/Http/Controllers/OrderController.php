@@ -9,7 +9,10 @@ use App\Models\MenuItem;
 use App\Models\User;
 use App\Models\QRCodeOrder;
 use App\Models\Subscription;
+use App\Models\PromoCampaign;
+use App\Models\PromoUse;
 use Illuminate\Support\Str;
+
 
 
 class OrderController extends Controller
@@ -100,16 +103,110 @@ class OrderController extends Controller
     // }
 
 
+    // public function createOrder(Request $request)
+    // {
+    //     // Fetch the shop details with user and wallet
+    //     $shop = Shop::with(['admin.wallet', 'subscription'])
+    //                 ->find($request->shopId);
+                    
+    //     if (!$shop) {
+    //         return response()->json(['message' => 'Shop not found.', 'status' => 400], 400);
+    //     }
+
+    //     // Validate request data first
+    //     $validated = $request->validate([
+    //         'items' => 'required|array',
+    //         'items.*.menu_item_id' => 'required|exists:menu_items,id',
+    //         'items.*.quantity' => 'required|integer|min:1',
+    //         'type' => 'required|string|in:table,delivery,room',
+    //         'name' => 'required|string',
+    //         'shopId' => 'required|exists:shops,id',
+    //         'tableNumber' => 'nullable|string',
+    //         'hotelRoom' => 'nullable|string',
+    //         'note' => 'nullable|string',
+    //         'address' => 'nullable|string',
+    //         'phone' => 'nullable|string',
+    //         'paymentStatus' => 'nullable|string',
+    //         'email' => 'nullable|email',
+    //     ]);
+
+    //     // Check delivery order login requirement
+    //     if ($validated['type'] === 'delivery' && !$request->user_id) {
+    //         return response()->json(['message' => 'Login required for delivery orders.', 'status' => 400], 400);
+    //     }
+
+    //     // Calculate order total
+    //     $orderTotal = 0;
+    //     $itemDetails = '';
+    //     foreach ($validated['items'] as $item) {
+    //         $menuItem = MenuItem::find($item['menu_item_id']);
+    //         $orderTotal += $menuItem->price * $item['quantity'];
+    //         $itemDetails .= "- {$menuItem->name} (Quantity: {$item['quantity']}, Price: ₦{$menuItem->price})\n";
+    //     }
+
+    //     // Check wallet balance for free subscription shops
+    //     if ($this->hasFreeSubscription($shop)) {
+    //         $requiredBalance = $orderTotal * 0.05;
+    //         $walletBalance = $shop->admin->wallet->balance ?? 0;
+            
+    //         if ($walletBalance < $requiredBalance) {
+    //             return response()->json([
+    //                 'message' => 'Shop wallet has insufficient funds (₦'.$walletBalance.') to cover the ₦'.$requiredBalance.' processing fee.',
+    //                 'status' => 400
+    //             ], 400);
+    //         }
+    //     }
+
+    //     // Generate tracking ID
+    //     $trackingId = Str::random(12);
+
+    //     // Create the order
+    //     $order = Order::create([
+    //         'user_id' => $request->user_id,
+    //         'shop_id' => $validated['shopId'],
+    //         'order_number' => strtoupper(uniqid('ORD-')),
+    //         'order_status' => 'pending',
+    //         'order_type' => $validated['type'],
+    //         'order_total' => $orderTotal,
+    //         'commission' => $this->hasFreeSubscription($shop) ? $orderTotal * 0.05 : 0,
+    //         'net_amount' => $this->hasFreeSubscription($shop) ? $orderTotal * 0.95 : $orderTotal,
+    //         'additional_notes' => $validated['note'] ?? '',
+    //         'address' => $validated['address'],
+    //         'user_phone' => $validated['phone'],
+    //         'user_name' => $validated['name'],
+    //         'table_number' => $validated['tableNumber'],
+    //         'hotel_room' => $validated['hotelRoom'],
+    //         'tracking_number' => $trackingId,
+    //         'commission_processed' => !$this->hasFreeSubscription($shop),
+    //         'payment_status' => $request->paymentStatus ?? '',
+    //     ]);
+
+    //     // Add order items
+    //     foreach ($validated['items'] as $item) {
+    //         $order->items()->create([
+    //             'menu_item_id' => $item['menu_item_id'],
+    //             'quantity' => $item['quantity'],
+    //         ]);
+    //     }
+
+    //     // Process commission immediately for paid orders
+    //     if ($request->paymentStatus === 'paid' && $this->hasFreeSubscription($shop)) {
+    //         $this->deductCommission($shop->admin->id, $orderTotal * 0.05, $order);
+    //     }
+
+    //     return response()->json([
+    //         'message' => 'Order created successfully.',
+    //         'order' => [
+    //             'orderDetails' => $order,
+    //             'items' => $itemDetails,
+    //             'shop_name' => $shop->shop_name,
+    //         ],
+    //         'trackingId' => $trackingId,
+    //     ], 201);
+    // }
+
     public function createOrder(Request $request)
     {
-        // Fetch the shop details with user and wallet
-        $shop = Shop::with(['admin.wallet', 'subscription'])
-                    ->find($request->shopId);
-                    
-        if (!$shop) {
-            return response()->json(['message' => 'Shop not found.', 'status' => 400], 400);
-        }
-
         // Validate request data first
         $validated = $request->validate([
             'items' => 'required|array',
@@ -125,20 +222,88 @@ class OrderController extends Controller
             'phone' => 'nullable|string',
             'paymentStatus' => 'nullable|string',
             'email' => 'nullable|email',
+            'promo_code' => 'nullable|string|exists:promo_campaigns,promo_code',
         ]);
+
+        $shop = Shop::with(['admin.wallet', 'subscription'])
+                    ->find($validated['shopId']);
+                    
+        if (!$shop) {
+            return response()->json(['message' => 'Shop not found.', 'status' => 400], 400);
+        }
 
         // Check delivery order login requirement
         if ($validated['type'] === 'delivery' && !$request->user_id) {
             return response()->json(['message' => 'Login required for delivery orders.', 'status' => 400], 400);
         }
 
-        // Calculate order total
+        // Calculate order total and check promo code
         $orderTotal = 0;
+        $discountAmount = 0;
         $itemDetails = '';
+        $promoCampaign = null;
+
         foreach ($validated['items'] as $item) {
             $menuItem = MenuItem::find($item['menu_item_id']);
             $orderTotal += $menuItem->price * $item['quantity'];
             $itemDetails .= "- {$menuItem->name} (Quantity: {$item['quantity']}, Price: ₦{$menuItem->price})\n";
+        }
+
+        // Validate and apply promo code if provided
+        if (!empty($validated['promo_code'])) {
+            $promoCampaign = PromoCampaign::where('promo_code', $validated['promo_code'])
+                ->where('shop_id', $shop->id)
+                ->where('is_active', true)
+                ->first();
+
+            if ($promoCampaign) {
+                // Check validity dates
+                $now = now();
+                if ($promoCampaign->start_date && $now->lt($promoCampaign->start_date)) {
+                    return response()->json(['message' => 'Promo code is not valid yet.', 'status' => 400], 400);
+                }
+                
+                if ($promoCampaign->end_date && $now->gt($promoCampaign->end_date)) {
+                    return response()->json(['message' => 'Promo code has expired.', 'status' => 400], 400);
+                }
+
+                // Check usage limit
+                if ($promoCampaign->usage_limit && $promoCampaign->times_used >= $promoCampaign->usage_limit) {
+                    return response()->json(['message' => 'Promo code has reached its usage limit.', 'status' => 400], 400);
+                }
+
+                // Check valid days
+                if ($promoCampaign->valid_days && !in_array($now->dayOfWeek, $promoCampaign->valid_days)) {
+                    return response()->json(['message' => 'Promo code not valid today.', 'status' => 400], 400);
+                }
+
+                // Check valid times
+                if ($promoCampaign->start_time && $promoCampaign->end_time) {
+                    $currentTime = $now->format('H:i:s');
+                    if ($currentTime < $promoCampaign->start_time || $currentTime > $promoCampaign->end_time) {
+                        return response()->json(['message' => 'Promo code not valid at this time.', 'status' => 400], 400);
+                    }
+                }
+
+                // Apply discount
+                switch ($promoCampaign->type) {
+                    case 'percentage':
+                        $discountAmount = $orderTotal * ($promoCampaign->discount_value / 100);
+                        break;
+                    case 'fixed':
+                        $discountAmount = min($promoCampaign->discount_value, $orderTotal);
+                        break;
+                    case 'bogo':
+                        // Implement BOGO logic based on your business rules
+                        // This is a simplified version - adjust as needed
+                        $discountAmount = $this->calculateBogoDiscount($validated['items'], $promoCampaign);
+                        break;
+                }
+
+                $orderTotal -= $discountAmount;
+            } else {
+                return response()->json(['message' => 'Invalid promo code.', 'status' => 400], 400);
+            }
         }
 
         // Check wallet balance for free subscription shops
@@ -164,7 +329,9 @@ class OrderController extends Controller
             'order_number' => strtoupper(uniqid('ORD-')),
             'order_status' => 'pending',
             'order_type' => $validated['type'],
-            'order_total' => $orderTotal,
+            'order_total' => $orderTotal + $discountAmount, 
+            'discount_amount' => $discountAmount,
+            'net_total' => $orderTotal,
             'commission' => $this->hasFreeSubscription($shop) ? $orderTotal * 0.05 : 0,
             'net_amount' => $this->hasFreeSubscription($shop) ? $orderTotal * 0.95 : $orderTotal,
             'additional_notes' => $validated['note'] ?? '',
@@ -176,6 +343,8 @@ class OrderController extends Controller
             'tracking_number' => $trackingId,
             'commission_processed' => !$this->hasFreeSubscription($shop),
             'payment_status' => $request->paymentStatus ?? '',
+            'promo_code' => $validated['promo_code'] ?? null,
+            'promo_campaign_id' => $promoCampaign ? $promoCampaign->id : null,
         ]);
 
         // Add order items
@@ -183,6 +352,18 @@ class OrderController extends Controller
             $order->items()->create([
                 'menu_item_id' => $item['menu_item_id'],
                 'quantity' => $item['quantity'],
+            ]);
+        }
+
+        // Increment promo code usage if applied
+        if ($promoCampaign) {
+            $promoCampaign->increment('times_used');
+            PromoUse::create([
+                'promo_campaign_id' => $promoCampaign->id,
+                'order_id' => $order->id,
+                'promo_code' => $promoCampaign->promo_code,
+                'shop_id' => $shop->id,
+                'user_id' => $request->user_id ?? null,
             ]);
         }
 
@@ -199,7 +380,30 @@ class OrderController extends Controller
                 'shop_name' => $shop->shop_name,
             ],
             'trackingId' => $trackingId,
+            'discountApplied' => $discountAmount > 0,
+            'discountAmount' => $discountAmount,
         ], 201);
+    }
+
+    private function calculateBogoDiscount($items, $promoCampaign)
+    {
+        // Implement your BOGO logic here
+        // For example: Buy one get one free on the cheapest item
+        $prices = [];
+        foreach ($items as $item) {
+            $menuItem = MenuItem::find($item['menu_item_id']);
+            for ($i = 0; $i < $item['quantity']; $i++) {
+                $prices[] = $menuItem->price;
+            }
+        }
+        
+        sort($prices);
+        $discount = 0;
+        for ($i = 0; $i < floor(count($prices) / 2); $i++) {
+            $discount += $prices[$i];
+        }
+        
+        return $discount;
     }
 
     protected function hasFreeSubscription(Shop $shop): bool

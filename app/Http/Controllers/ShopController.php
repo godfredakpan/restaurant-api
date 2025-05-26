@@ -47,7 +47,7 @@ class ShopController extends Controller
 
    public function trackMenuView(Request $request, Shop $store)
     {
-        $throttleKey = 'menu_view:'.($request->user()?->id ?: $request->ip());
+        $throttleKey = 'menu_view:'.($request->user_id ?: $request->ip());
         
         // Rate limiting: 10 views per minute per user/IP
         if (RateLimiter::tooManyAttempts($throttleKey, 10)) {
@@ -75,7 +75,7 @@ class ShopController extends Controller
         if (!$ipExists && !$sessionExists) {
             $view = new MenuView([
                 'shop_id' => $store->id,
-                'user_id' => $request->user()?->id,
+                'user_id' => $request->user_id,
                 'ip_address' => $request->ip(),
                 'session_id' => $request->hasSession() ? $request->session()->getId() : null,
                 'user_agent' => $request->userAgent(),

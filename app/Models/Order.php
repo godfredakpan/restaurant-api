@@ -27,7 +27,9 @@ class Order extends Model
         'tracking_number',
         'commission',
         'net_amount',
-        'commission_processed'
+        'commission_processed',
+        'promo_campaign_id',
+        'promo_code'
     ];
 
 
