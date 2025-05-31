@@ -150,7 +150,7 @@ Route::group(['middleware' => 'cors'], function () {
         // create campaign
         Route::post('/create', [PromoCampaignController::class, 'store']);
         // update campaign
-        Route::put('/update/{promoCampaign}', [PromoCampaignController::class, 'update']);
+        Route::put('/update/{id}', [PromoCampaignController::class, 'update']);
         // delete campaign
         Route::delete('/delete/{promoCampaign}', [PromoCampaignController::class, 'destroy']);
         // get single campaign

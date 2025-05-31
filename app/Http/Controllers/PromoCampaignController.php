@@ -49,7 +49,11 @@ class PromoCampaignController extends Controller
             'show_as_banner' => 'boolean',
         ]);
 
-        $promo_code = $request->input('promo_code') ?? strtoupper(uniqid('PROMO_')); 
+        $promo_code = trim($request->input('promo_code'));
+        if (!$promo_code) {
+            $promo_code = $this->generateUniquePromoCode();
+        }
+
         $usage_limit = $request->input('usage_limit', null); // Optional usage limit
         $times_used = 0; // Default to 0 times used
 
@@ -67,9 +71,23 @@ class PromoCampaignController extends Controller
         return response()->json($campaign, 201);
     }
 
-    public function update(Request $request, PromoCampaign $promoCampaign)
+    private function generateUniquePromoCode()
     {
-        $this->authorize('update', $promoCampaign);
+        do {
+            $code = 'P_' . strtoupper(\Str::random(5));
+        } while (PromoCampaign::where('promo_code', $code)->exists());
+
+        return $code;
+    }
+
+    public function update(Request $request, $id)
+    {
+        // $this->authorize('update', $promoCampaign);
+        $promoCampaign = PromoCampaign::findOrFail($id);
+
+        if (!$promoCampaign) {
+            return response()->json(['error' => 'Campaign not found'], 404);
+        }
 
         $request->validate([
             'title' => 'sometimes|string|max:255',
@@ -94,7 +112,6 @@ class PromoCampaignController extends Controller
 
     public function destroy(PromoCampaign $promoCampaign)
     {
-        $this->authorize('delete', $promoCampaign);
         $promoCampaign->delete();
         return response()->json(null, 204);
     }
@@ -102,10 +119,17 @@ class PromoCampaignController extends Controller
     public function show($id)
     {
         $campaign = PromoCampaign::where('id', $id)->first();
+        
         if (!$campaign) {
             return response()->json(['error' => 'Campaign not found'], 404);
         }
+
+        $campaign->times_used = $campaign->uses()->count();
+        $campaign->unique_users = $campaign->uses()->distinct('user_id')->count('user_id');
+        $campaign->usage_limit = $campaign->usage_limit ?? null; 
+
         return response()->json($campaign);
+
     }
     public function getActiveCampaigns()
     {

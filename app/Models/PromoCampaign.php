@@ -21,6 +21,8 @@ class PromoCampaign extends Model
         'end_time',
         'start_date',
         'end_date',
+        'usage_limit',
+        'promo_code',
         'show_on_menu',
         'show_as_banner',
         'is_active'
