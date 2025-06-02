@@ -18,6 +18,7 @@ use App\Http\Controllers\RatingController;
 use App\Http\Controllers\RecommendationController;
 use App\Http\Controllers\AnalyticsController;
 use App\Http\Controllers\PromoCampaignController;
+use App\Http\Controllers\BusinessDiscoveryController;
 
 
 
@@ -187,3 +188,14 @@ Route::group(['middleware' => 'cors'], function () {
     Route::get('/recommendations/time-based', [RecommendationController::class, 'getTimeBasedRecommendations']);
 
 });
+
+Route::prefix('discover')->group(function () {
+    Route::get('/search', [BusinessDiscoveryController::class, 'search']);
+    Route::get('/business/{placeId}', [BusinessDiscoveryController::class, 'getDetails']);
+    Route::post('/claim-business', [BusinessDiscoveryController::class, 'claimBusiness']);
+
+    Route::post('/refer-business', [BusinessDiscoveryController::class, 'referBusiness']);
+
+});
+
+Route::post('/business-claims/{claimId}/approve', [BusinessDiscoveryController::class, 'approveClaim']);
