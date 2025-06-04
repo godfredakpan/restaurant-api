@@ -142,6 +142,7 @@ Route::group(['middleware' => 'cors'], function () {
     Route::prefix('auth')->group(function () {
         Route::post('register', [UserController::class, 'register']);
         Route::post('register-shop', [UserController::class, 'registerShop']);
+        Route::post('/onboarding/register-shop', [ShopController::class, 'registerShopWithOnboarding']);
         Route::post('login', [UserController::class, 'login']);
     });
 

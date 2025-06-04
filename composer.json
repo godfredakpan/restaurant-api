@@ -1,15 +1,14 @@
 {
-    "name": "laravel/laravel",
+    "name": "orderrave/orderrave",
     "type": "project",
-    "description": "The Laravel Framework.",
+    "description": "Orderrave API",
     "keywords": ["framework", "laravel"],
     "license": "MIT",
     "require": {
-        "php": "^8.4.7",
+        "php": "^8.2 || ^8.3",
         "fruitcake/laravel-cors": "^3.0",
         "fruitcake/php-cors": "^1.3",
         "guzzlehttp/guzzle": "^7.0.1",
-        "intervention/image": "^3.9",
         "jenssegers/agent": "^2.6",
         "laravel/framework": "^8.54",
         "laravel/sanctum": "^2.15",
@@ -18,6 +17,7 @@
         "unicodeveloper/laravel-paystack": "^1.2"
     },
     "require-dev": {
+        "barryvdh/laravel-debugbar": "^3.7",
         "facade/ignition": "^2.5",
         "fakerphp/faker": "^1.9.1",
         "laravel/sail": "^1.0.1",

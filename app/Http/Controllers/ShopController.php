@@ -4,12 +4,19 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\Shop;
+use App\Models\User;
+use App\Models\Category;
+use App\Models\MenuItem;
 use App\Models\Wallet;
 use App\Models\MenuView;
 use App\Models\Subscription;
 use Illuminate\Support\Facades\File; 
 use Illuminate\Support\Facades\RateLimiter;
 use Jenssegers\Agent\Agent;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
+
 
 
 class ShopController extends Controller
@@ -32,6 +39,258 @@ class ShopController extends Controller
             ->get();
         
         return response()->json($markets);
+    }
+
+    public function registerShopWithOnboarding(Request $request)
+    {
+        // Validate the request structure
+        $request->validate([
+            'basicInfo' => 'required|array',
+            'basicInfo.name' => 'required|string|max:255',
+            'basicInfo.email' => 'required|string|email|max:255|unique:users,email',
+            'basicInfo.password' => 'required|string|min:8',
+            'basicInfo.businessName' => 'required|string|max:255',
+            'basicInfo.businessType' => 'required|string|max:255',
+            'basicInfo.phone' => 'required|string|max:20',
+            'basicInfo.address' => 'required|string',
+            'basicInfo.city' => 'required|string',
+            'basicInfo.state' => 'required|string',
+            'basicInfo.termsAccepted' => 'required|boolean',
+            'hours' => 'required|array',
+            'hours.opening_time' => 'nullable|string',
+            'hours.closing_time' => 'nullable|string',
+            'products' => 'nullable|array',
+            'products.*.name' => 'nullable|string',
+            'products.*.price' => 'nullable|numeric',
+            'products.*.category' => 'nullable|string',
+            'payment' => 'nullable|array',
+            'payment.bankDetails' => 'required_if:payment.paymentMethod,bank|array',
+            'payment.bankDetails.accountNumber' => 'required_if:payment.paymentMethod,bank|string',
+            'payment.bankDetails.accountName' => 'required_if:payment.paymentMethod,bank|string',
+            'payment.bankDetails.bankName' => 'required_if:payment.paymentMethod,bank|string',
+            'branding' => 'nullable|array',
+        ]);
+
+        // Check if user exists first
+        if (User::where('email', $request->basicInfo['email'])->exists()) {
+            return response()->json(['message' => 'User already exists', 'status' => 'error'], 409);
+        }
+
+        // Start database transaction
+        DB::beginTransaction();
+
+        try {
+            $bannerPath = $this->processBase64Image($request->branding['banner'] ?? null, 'banners', $request->basicInfo['businessName']);
+
+            // Create Shop
+            $shopData = [
+                'shop_name' => $request->basicInfo['businessName'],
+                'business_type' => $request->basicInfo['businessType'],
+                'address' => $request->basicInfo['address'],
+                'city' => $request->basicInfo['city'],
+                'state' => $request->basicInfo['state'],
+                'country' => 'Nigeria',
+                'account_number' => $request->payment['bankDetails']['accountNumber'],
+                'account_name' => $request->payment['bankDetails']['accountName'],
+                'account_bank' => $request->payment['bankDetails']['bankName'],
+                'phone_number' => $request->basicInfo['phone'],
+                'email' => $request->basicInfo['email'],
+                'opening_time' => $request->hours['opening_time'],
+                'closing_time' => $request->hours['closing_time'],
+                'status' => 'active',
+                'banner' => $bannerPath ?? null,
+
+                'logo' => $request->branding['logo'] ?? null,
+                'description' => $request->branding['description'] ?? null,
+            ];
+
+            $shop = Shop::create($shopData);
+
+            // Create User
+            $user = User::create([
+                'name' => $request->basicInfo['name'],
+                'email' => $request->basicInfo['email'],
+                'phone_number' => $request->basicInfo['phone'],
+                'shop_id' => $shop->id,
+                'password' => Hash::make($request->basicInfo['password']),
+                'role' => 'admin',
+                'email_verification_token' => Str::random(60),
+            ]);
+
+            // Update shop with admin ID
+            $shop->update(['admin_id' => $user->id]);
+
+            $categoryMap = [];
+            foreach ($request->products as $product) {
+                // Find or create category
+                if (!isset($categoryMap[$product['category']])) {
+                    $category = Category::firstOrCreate(
+                        ['name' => $product['category']],
+                        ['shop_id' => $shop->id]
+                    );
+                    $categoryMap[$product['category']] = $category->id;
+                }
+
+                // Create menu item
+                MenuItem::create([
+                    'shop_id' => $shop->id,
+                    'category_id' => $categoryMap[$product['category']],
+                    'name' => $product['name'],
+                    'description' => $product['description'] ?? null,
+                    'price' => $product['price'],
+                    'image_path' => $product['image'] ?? 'https://api.orderrave.ng/public/images/menu_items/placeholder.jpg',
+                    'processing_time' => '15-30 mins', // Default value
+                    'status' => 'inactive' // inactive if there is no image,
+                ]);
+            }
+
+            // Create default subscription
+            $subscription = new SubscriptionController();
+            $subscription->createFreePlan($shop->id, $user->id);
+
+            // Commit transaction
+            DB::commit();
+
+            return response()->json([
+                'message' => 'Shop registration successful',
+                'shop' => $shop,
+                'user' => $user,
+                'menu_items_count' => count($request->products),
+                'status' => 'success',
+            ], 201);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            \Log::error('Shop registration failed: ' . $e->getMessage());
+            return response()->json([
+                'message' => 'Shop registration failed',
+                'error' => $e->getMessage(),
+                'status' => 'error',
+            ], 204); 
+        }
+    }
+
+    /**
+     * Process base64 encoded image and store it
+     */
+    private function processBase64Image($base64String, $folder, $shopName = null)
+    {
+        if (!$base64String) {
+            return null;
+        }
+
+        try {
+            // Extract the image data and extension from the base64 string
+            if (preg_match('/^data:image\/(\w+);base64,/', $base64String, $matches)) {
+                $imageType = $matches[1];
+                $imageData = substr($base64String, strpos($base64String, ',') + 1);
+                $imageData = base64_decode($imageData);
+                
+                if ($imageData === false) {
+                    throw new \Exception('Invalid base64 image data');
+                }
+            } else {
+                // If no prefix, assume it's raw base64
+                $imageType = 'png';
+                $imageData = base64_decode($base64String);
+                
+                if ($imageData === false) {
+                    throw new \Exception('Invalid base64 image data');
+                }
+            }
+
+            // Validate image type
+            $validTypes = ['jpg', 'jpeg', 'png', 'gif'];
+            if (!in_array(strtolower($imageType), $validTypes)) {
+                throw new \Exception('Invalid image type');
+            }
+
+            // Generate unique filename
+            $filename = Str::random(20) . '.' . $imageType . ($shopName ? '-' . $shopName : '');
+            // $storagePath = "public/{$folder}/{$filename}";
+            $fullPath = public_path("images/{$folder}/{$filename}");
+            $imagePath =  "images/{$folder}/{$filename}";
+
+            // Ensure directory exists
+            if (!File::exists(dirname($fullPath))) {
+                File::makeDirectory(dirname($fullPath), 0755, true);
+            }
+
+            // Save the original image
+            file_put_contents($fullPath, $imageData);
+
+            // Resize if needed (example: resize banner to 1200x300)
+            if ($folder === 'banners') {
+                $this->resizeImageBanner($fullPath, $fullPath);
+            } elseif ($folder === 'logos') {
+                $this->resizeImageBanner($fullPath, $fullPath);
+            }
+
+            return $imagePath; // Return the path to the stored image
+
+        } catch (\Exception $e) {
+            \Log::error('Image processing error: ' . $e->getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Process product image (base64 or URL)
+     */
+    private function processProductImage($image)
+    {
+        if (!$image) {
+            return null;
+        }
+
+        // If it's a base64 image
+        if (strpos($image, 'data:image') === 0 || (base64_decode($image, true) !== false)) {
+            return $this->processBase64Image($image, 'products');
+        }
+
+        // If it's a URL, return as is (or download and process if needed)
+        return $image;
+    }
+
+    /**
+     * Resize an image file
+     */
+    private function resizeImageBanner($imagePath, $targetPath) {
+        list($width, $height, $type) = getimagesize($imagePath);
+        $newWidth = 500;
+        $newHeight = ($height / $width) * $newWidth;
+
+        $imageResized = imagecreatetruecolor($newWidth, $newHeight);
+
+        // Detect image type from file
+        $source = null;
+        switch ($type) {
+            case IMAGETYPE_JPEG:
+                $source = imagecreatefromjpeg($imagePath);
+                break;
+            case IMAGETYPE_PNG:
+                $source = imagecreatefrompng($imagePath);
+                break;
+            case IMAGETYPE_GIF:
+                $source = imagecreatefromgif($imagePath);
+                break;
+        }
+
+        if ($source) {
+            imagecopyresampled($imageResized, $source, 0, 0, 0, 0, $newWidth, $newHeight, $width, $height);
+
+            $compressionQuality = 75;
+            if ($type == IMAGETYPE_JPEG) {
+                imagejpeg($imageResized, $targetPath, $compressionQuality);
+            } elseif ($type == IMAGETYPE_PNG) {
+                imagepng($imageResized, $targetPath);
+            } elseif ($type == IMAGETYPE_GIF) {
+                imagegif($imageResized, $targetPath);
+            }
+
+            imagedestroy($imageResized);
+            imagedestroy($source);
+        }
     }
 
     // allStores

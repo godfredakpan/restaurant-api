@@ -42,7 +42,7 @@ class MenuController extends Controller
             // Handle Image
             if ($request->hasFile('image')) {
                 $image = $request->file('image');
-                $imageName = time() . '_' . Str::slug($image->getClientOriginalName());
+                $imageName = time() . '_' . $request->shop_id . '_' . Str::slug($image->getClientOriginalName());
                 $imageDirectory = public_path('images/menu_items/');
                 $imagePath = $imageDirectory . $imageName;
     
