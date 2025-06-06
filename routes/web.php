@@ -16,7 +16,6 @@ use Illuminate\Support\Facades\Route;
 */
 
 Route::get('/', function () {
-    // return json 
     return response()->json(['name' => 'OrderRave Solutions Ltd',  'version' => '1.0.0', 'description' => 'OrderRave API : Bring your Restaurant Menu to Life with OrderRave', 'message' => 'Sign up to get started: https://orderrave.ng',], 202);
 });
 

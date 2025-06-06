@@ -21,13 +21,31 @@ use Illuminate\Support\Str;
 
 class ShopController extends Controller
 {
-    public function index() {
-        $shops = Shop::select('id', 'shop_name', 'slug', 'banner', 'opening_time', 'closing_time', 'category', 'rating', 'phone_number', 'address', 'city', 'state', 'country', 'description', 'services_rendered', 'account_number', 'account_name', 'account_bank', 'status')
-            ->withCount('ratings') 
-            ->withAvg('ratings', 'rating') 
-            ->where('status', 'active')
-            ->get();
+    // public function index() {
+    //     $shops = Shop::select('id', 'shop_name', 'slug', 'banner', 'opening_time', 'closing_time', 'category', 'rating', 'phone_number', 'address', 'city', 'state', 'country', 'description', 'services_rendered', 'account_number', 'account_name', 'account_bank', 'status')
+    //         ->withCount('ratings') 
+    //         ->withAvg('ratings', 'rating') 
+    //         ->where('status', 'active')
+    //         ->get();
     
+    //     return response()->json($shops);
+    // }
+
+    public function index()
+    {
+        $shops = Shop::query()
+            ->select([
+                'id', 'shop_name', 'slug', 'banner', 'opening_time', 'closing_time', 
+                'category', 'rating', 'phone_number', 'address', 'city', 'state', 
+                'country', 'description', 'services_rendered', 'account_number', 
+                'account_name', 'account_bank', 'status'
+            ])
+            ->withCount('ratings')
+            ->withAvg('ratings', 'rating')
+            ->where('status', 'active')
+            ->orderBy('shop_name')
+            ->cursorPaginate(100); 
+        
         return response()->json($shops);
     }
 
@@ -64,10 +82,10 @@ class ShopController extends Controller
             'products.*.price' => 'nullable|numeric',
             'products.*.category' => 'nullable|string',
             'payment' => 'nullable|array',
-            'payment.bankDetails' => 'required_if:payment.paymentMethod,bank|array',
-            'payment.bankDetails.accountNumber' => 'required_if:payment.paymentMethod,bank|string',
-            'payment.bankDetails.accountName' => 'required_if:payment.paymentMethod,bank|string',
-            'payment.bankDetails.bankName' => 'required_if:payment.paymentMethod,bank|string',
+            'payment.bankDetails' => 'nullable|array',
+            'payment.bankDetails.accountNumber' => 'nullable|string',
+            'payment.bankDetails.accountName' => 'nullable|string',
+            'payment.bankDetails.bankName' => 'nullable|string',
             'branding' => 'nullable|array',
         ]);
 
@@ -85,7 +103,7 @@ class ShopController extends Controller
             // Create Shop
             $shopData = [
                 'shop_name' => $request->basicInfo['businessName'],
-                'business_type' => $request->basicInfo['businessType'],
+                'category' => $request->basicInfo['businessType'],
                 'address' => $request->basicInfo['address'],
                 'city' => $request->basicInfo['city'],
                 'state' => $request->basicInfo['state'],
@@ -404,14 +422,13 @@ class ShopController extends Controller
 
     // update shop 
     public function update(Request $request, $id) {
-
         if ($request->has('services_rendered') && is_string($request->services_rendered)) {
             $decodedServices = json_decode($request->services_rendered, true);
-    
+
             if (!is_array($decodedServices)) {
                 return response()->json(['message' => 'The services rendered must be a valid JSON array.'], 422);
             }
-    
+
             $request->merge(['services_rendered' => $decodedServices]);
         }
 
@@ -426,23 +443,18 @@ class ShopController extends Controller
             'closing_time' => 'nullable|string',
             'category' => 'nullable|string',
             'banner' => 'nullable|image|mimes:jpeg,png,jpg,PNG|max:5048',
+            'banner_url' => 'nullable|string|url', 
             'services_rendered' => 'nullable|array',
             'account_number' => 'nullable|string',
             'account_name' => 'nullable|string',
             'account_bank' => 'nullable|string',
-
         ]);
-        
-        if ($request->has('services_rendered') && is_string($request->services_rendered)) {
-            $validatedData['services_rendered'] = json_decode($request->services_rendered, true);
-        }
-        
+
         $shop = Shop::where('id', $id)->first();
 
         if (!$shop) {
             return response()->json(['message' => 'Shop not found'], 404);
         }
-
 
         if ($request->hasFile('banner')) {
             $image = $request->file('banner');
@@ -458,8 +470,12 @@ class ShopController extends Controller
             $this->resizeImage($image, $imagePath);
 
             $validated['banner'] = 'public/images/banners/' . $imageName;
+            unset($validated['banner_url']); 
+        } elseif ($request->has('banner_url')) {
+            $validated['banner'] = $request->banner_url; 
+        } else {
+            unset($validated['banner']); 
         }
-        
 
         $shop->update($validated);
 

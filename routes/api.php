@@ -169,7 +169,9 @@ Route::group(['middleware' => 'cors'], function () {
     Route::get('/referrer/check/{phone}', [ReferralController::class, 'checkReferralExists']);
 
 
-    Route::get('/stores', [ShopController::class, 'index']);
+    Route::group(['middleware' => ['cors']], function() {
+        Route::get('/stores', [ShopController::class, 'index']);
+    });
 
     Route::post('/stores/{store}/menu-views', [ShopController::class, 'trackMenuView'])
     ->middleware(['throttle:60,1']); 
@@ -192,7 +194,9 @@ Route::group(['middleware' => 'cors'], function () {
 
 Route::prefix('discover')->group(function () {
     Route::get('/search', [BusinessDiscoveryController::class, 'search']);
+
     Route::get('/business/{placeId}', [BusinessDiscoveryController::class, 'getDetails']);
+
     Route::post('/claim-business', [BusinessDiscoveryController::class, 'claimBusiness']);
 
     Route::post('/refer-business', [BusinessDiscoveryController::class, 'referBusiness']);
