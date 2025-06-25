@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Wallet;
+use App\Models\PaymentHistory;
 use App\Models\WalletTransaction;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -12,17 +13,29 @@ class WalletController extends Controller
 {
     public function index()
     {
-        $wallet = Auth::user()->wallet()->firstOrCreate([
-            'user_id' => Auth::id()
+        $user = Auth::user();
+
+        $wallet = $user->wallet()->firstOrCreate([
+            'user_id' => $user->id
         ], [
             'balance' => 0,
             'currency' => 'NGN'
         ]);
 
+        $transactions = $wallet->transactions()->latest()->get();
+
+        // Fetch payment history for this shop (assuming 1:1 user-shop relation)
+         $paymentHistory = PaymentHistory::with(['order:id,order_number,user_name,order_type,table_number'])
+            ->where('shop_id', $user->shop_id)
+            ->select('id', 'order_id', 'amount', 'status', 'channel', 'created_at')
+            ->latest()
+        ->get();
+
         return response()->json([
             'balance' => $wallet->balance,
             'currency' => $wallet->currency,
-            'transactions' => $wallet->transactions()->latest()->get()
+            'transactions' => $transactions,
+            'payment_history' => $paymentHistory,
         ]);
     }
 

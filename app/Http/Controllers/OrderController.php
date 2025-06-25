@@ -273,7 +273,7 @@ class OrderController extends Controller
         $reference = 'ORD-' . strtoupper(Str::random(10));
         $callbackUrl = route('paystack.callback');
 
-        $orderTotal += 13; // Platform fee
+        $orderTotal += 20; // Platform fee
 
         $paymentRequest = Paystack::getAuthorizationUrl([
             'amount' => round(($orderTotal + $discountAmount) * 100),
