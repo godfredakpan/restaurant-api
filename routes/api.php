@@ -19,6 +19,7 @@ use App\Http\Controllers\RecommendationController;
 use App\Http\Controllers\AnalyticsController;
 use App\Http\Controllers\PromoCampaignController;
 use App\Http\Controllers\BusinessDiscoveryController;
+use App\Http\Controllers\AdminPayoutController;
 
 
 
@@ -72,6 +73,8 @@ Route::group(['middleware' => 'cors'], function () {
 
     Route::post('order', [OrderController::class, 'createOrder'])->middleware('guest');
 
+    Route::post('order-v2', [OrderController::class, 'createOrderV2'])->middleware('guest');
+
     Route::post('/order-qr', [OrderController::class, 'submitOrder']);
 
     Route::middleware('auth:sanctum', 'role:admin')->group(function () {
@@ -81,6 +84,12 @@ Route::group(['middleware' => 'cors'], function () {
 
     // subscription
     Route::apiResource('subscriptions', SubscriptionController::class);
+
+    Route::prefix('admin')->middleware(['auth:sanctum'])->group(function () {
+        Route::get('failed-payouts', [AdminPayoutController::class, 'index']);
+        Route::post('failed-payouts/{id}/retry', [AdminPayoutController::class, 'retry']);
+        Route::get('payment-history', [AdminPayoutController::class, 'paymentHistory']);
+    });
 
     // product
     Route::prefix('products')->middleware(['auth:sanctum', 'role:admin', 'shop.active'])->group(function () {
@@ -107,6 +116,8 @@ Route::group(['middleware' => 'cors'], function () {
         Route::post('/activate-free-trial', [ShopController::class, 'activateFreeTrial']);
         Route::post('/deactivate-free-trial', [ShopController::class, 'deactivateFreeTrial']);
         Route::post('/activate-free-account', [ShopController::class, 'activateFreeSubscription']);
+        // update styling
+        Route::post('/update-styling', [ShopController::class, 'updateStyling']);
     });
 
     Route::prefix('sales-overview')->middleware(['auth:sanctum', 'shop.active']) ->group(function () {
@@ -204,3 +215,7 @@ Route::prefix('discover')->group(function () {
 });
 
 Route::post('/business-claims/{claimId}/approve', [BusinessDiscoveryController::class, 'approveClaim']);
+
+Route::post('/webhooks/paystack', [\App\Http\Controllers\PaystackWebhookController::class, 'handle']);
+
+// Route::get('/paystack/payment-callback', [OrderController::class, 'handlePaymentCallback'])->name('paystack.commission.callback');

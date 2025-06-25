@@ -11,199 +11,19 @@ use App\Models\QRCodeOrder;
 use App\Models\Subscription;
 use App\Models\PromoCampaign;
 use App\Models\PromoUse;
+use App\Models\PaymentHistory;
+
+use App\Services\VendorPayoutService;
+
+
 use Illuminate\Support\Str;
+use Unicodeveloper\Paystack\Facades\Paystack;
 
 
 
 class OrderController extends Controller
 {
 
-
-    // public function createOrder(Request $request)
-    // {
-    //     // Fetch the shop details
-    //     $shop = Shop::where('id', $request->shopId)->first();
-    //     if (!$shop) {
-    //         return response()->json(['message' => 'Shop not found.', 'status' => 400], 400);
-    //     }
-        
-    //     // Fetch user details if available
-    //     $user = $request->user_id ? User::where('id', $request->user_id)->first() : null;
-
-    //     // Validate request data
-    //     $validated = $request->validate([
-    //         'items' => 'required|array',
-    //         'items.*.menu_item_id' => 'required|exists:menu_items,id',
-    //         'items.*.quantity' => 'required|integer|min:1',
-    //         'type' => 'required|string|in:table,delivery,room',
-    //         'name' => 'required|string',
-    //         'shopId' => 'required|exists:shops,id',
-    //         'tableNumber' => 'nullable|string',
-    //         'hotelRoom' => 'nullable|string',
-    //         'note' => 'nullable|string',
-    //         'address' => 'nullable|string',
-    //         'phone' => 'nullable|string',
-    //         'paymentStatus' => 'nullable|string',
-    //         'email' => 'nullable|email', // Make email optional
-    //     ]);
-
-    //     // Check if login is required for delivery orders
-    //     if ($validated['type'] === 'delivery' && !$request->user_id) {
-    //         return response()->json(['message' => 'Login required for delivery orders, please login to continue.', 'status' => 400], 400);
-    //     }
-
-    //     // Calculate order total
-    //     $orderTotal = 0;
-    //     $itemDetails = ''; 
-    //     foreach ($validated['items'] as $item) {
-    //         $menuItem = \App\Models\MenuItem::find($item['menu_item_id']);
-    //         $orderTotal += $menuItem->price * $item['quantity'];
-    //         $itemDetails .= "- {$menuItem->name} (Quantity: {$item['quantity']}, Price: ₦{$menuItem->price})\n";
-    //     }
-
-    //     // Generate a unique tracking ID
-    //     $trackingId = Str::random(12);
-
-    //     // Create the order
-    //     $order = Order::create([
-    //         'user_id' => $user ? $user->id : null,
-    //         'shop_id' => $validated['shopId'],
-    //         'order_number' => strtoupper(uniqid('ORD-')),
-    //         'order_status' => 'pending',
-    //         'order_type' => $validated['type'],
-    //         'order_total' => $orderTotal,
-    //         'additional_notes' => $validated['note'],
-    //         'address' => $validated['address'],
-    //         'user_phone' => $validated['phone'],
-    //         'user_name' => $validated['name'],
-    //         'table_number' => $validated['tableNumber'],
-    //         'hotel_room' => $validated['hotelRoom'],
-    //         'tracking_number' => $trackingId,
-    //         'payment_status' => $request->paymentStatus ?? '',
-    //     ]);
-
-    //     // Add items to the order
-    //     foreach ($validated['items'] as $item) {
-    //         $order->items()->create([
-    //             'menu_item_id' => $item['menu_item_id'],
-    //             'quantity' => $item['quantity'],
-    //         ]);
-    //     }
-
-    //     // Prepare the response
-    //     return response()->json([
-    //         'message' => 'Order created successfully.',
-    //         'order' => [
-    //             'orderDetails' => $order,
-    //             'items' => $itemDetails, 
-    //             'shop_name' => $shop->shop_name, 
-    //         ],
-    //         'trackingId' => $trackingId,
-    //     ], 201);
-    // }
-
-
-    // public function createOrder(Request $request)
-    // {
-    //     // Fetch the shop details with user and wallet
-    //     $shop = Shop::with(['admin.wallet', 'subscription'])
-    //                 ->find($request->shopId);
-                    
-    //     if (!$shop) {
-    //         return response()->json(['message' => 'Shop not found.', 'status' => 400], 400);
-    //     }
-
-    //     // Validate request data first
-    //     $validated = $request->validate([
-    //         'items' => 'required|array',
-    //         'items.*.menu_item_id' => 'required|exists:menu_items,id',
-    //         'items.*.quantity' => 'required|integer|min:1',
-    //         'type' => 'required|string|in:table,delivery,room',
-    //         'name' => 'required|string',
-    //         'shopId' => 'required|exists:shops,id',
-    //         'tableNumber' => 'nullable|string',
-    //         'hotelRoom' => 'nullable|string',
-    //         'note' => 'nullable|string',
-    //         'address' => 'nullable|string',
-    //         'phone' => 'nullable|string',
-    //         'paymentStatus' => 'nullable|string',
-    //         'email' => 'nullable|email',
-    //     ]);
-
-    //     // Check delivery order login requirement
-    //     if ($validated['type'] === 'delivery' && !$request->user_id) {
-    //         return response()->json(['message' => 'Login required for delivery orders.', 'status' => 400], 400);
-    //     }
-
-    //     // Calculate order total
-    //     $orderTotal = 0;
-    //     $itemDetails = '';
-    //     foreach ($validated['items'] as $item) {
-    //         $menuItem = MenuItem::find($item['menu_item_id']);
-    //         $orderTotal += $menuItem->price * $item['quantity'];
-    //         $itemDetails .= "- {$menuItem->name} (Quantity: {$item['quantity']}, Price: ₦{$menuItem->price})\n";
-    //     }
-
-    //     // Check wallet balance for free subscription shops
-    //     if ($this->hasFreeSubscription($shop)) {
-    //         $requiredBalance = $orderTotal * 0.05;
-    //         $walletBalance = $shop->admin->wallet->balance ?? 0;
-            
-    //         if ($walletBalance < $requiredBalance) {
-    //             return response()->json([
-    //                 'message' => 'Shop wallet has insufficient funds (₦'.$walletBalance.') to cover the ₦'.$requiredBalance.' processing fee.',
-    //                 'status' => 400
-    //             ], 400);
-    //         }
-    //     }
-
-    //     // Generate tracking ID
-    //     $trackingId = Str::random(12);
-
-    //     // Create the order
-    //     $order = Order::create([
-    //         'user_id' => $request->user_id,
-    //         'shop_id' => $validated['shopId'],
-    //         'order_number' => strtoupper(uniqid('ORD-')),
-    //         'order_status' => 'pending',
-    //         'order_type' => $validated['type'],
-    //         'order_total' => $orderTotal,
-    //         'commission' => $this->hasFreeSubscription($shop) ? $orderTotal * 0.05 : 0,
-    //         'net_amount' => $this->hasFreeSubscription($shop) ? $orderTotal * 0.95 : $orderTotal,
-    //         'additional_notes' => $validated['note'] ?? '',
-    //         'address' => $validated['address'],
-    //         'user_phone' => $validated['phone'],
-    //         'user_name' => $validated['name'],
-    //         'table_number' => $validated['tableNumber'],
-    //         'hotel_room' => $validated['hotelRoom'],
-    //         'tracking_number' => $trackingId,
-    //         'commission_processed' => !$this->hasFreeSubscription($shop),
-    //         'payment_status' => $request->paymentStatus ?? '',
-    //     ]);
-
-    //     // Add order items
-    //     foreach ($validated['items'] as $item) {
-    //         $order->items()->create([
-    //             'menu_item_id' => $item['menu_item_id'],
-    //             'quantity' => $item['quantity'],
-    //         ]);
-    //     }
-
-    //     // Process commission immediately for paid orders
-    //     if ($request->paymentStatus === 'paid' && $this->hasFreeSubscription($shop)) {
-    //         $this->deductCommission($shop->admin->id, $orderTotal * 0.05, $order);
-    //     }
-
-    //     return response()->json([
-    //         'message' => 'Order created successfully.',
-    //         'order' => [
-    //             'orderDetails' => $order,
-    //             'items' => $itemDetails,
-    //             'shop_name' => $shop->shop_name,
-    //         ],
-    //         'trackingId' => $trackingId,
-    //     ], 201);
-    // }
 
     public function createOrder(Request $request)
     {
@@ -384,6 +204,137 @@ class OrderController extends Controller
             'discountAmount' => $discountAmount,
         ], 201);
     }
+
+    public function createOrderV2(Request $request)
+    {
+        $validated = $request->validate([
+            'items' => 'required|array',
+            'items.*.menu_item_id' => 'required|exists:menu_items,id',
+            'items.*.quantity' => 'required|integer|min:1',
+            'type' => 'required|string|in:table,delivery,room',
+            'name' => 'required|string',
+            'shopId' => 'required|exists:shops,id',
+            'tableNumber' => 'nullable|string',
+            'hotelRoom' => 'nullable|string',
+            'note' => 'nullable|string',
+            'address' => 'nullable|string',
+            'phone' => 'nullable|string',
+            'paymentStatus' => 'nullable|string',
+            'email' => 'nullable|email',
+            'promo_code' => 'nullable|string|exists:promo_campaigns,promo_code',
+        ]);
+
+        $shop = Shop::with(['admin.wallet', 'subscription'])->find($validated['shopId']);
+        if (!$shop) return response()->json(['message' => 'Shop not found.', 'status' => 400], 400);
+
+        if ($validated['type'] === 'delivery' && !$request->user_id) {
+            return response()->json(['message' => 'Login required for delivery orders.', 'status' => 400], 400);
+        }
+
+        $orderTotal = 0;
+        $discountAmount = 0;
+        $promoCampaign = null;
+
+        foreach ($validated['items'] as $item) {
+            $menuItem = MenuItem::find($item['menu_item_id']);
+            $orderTotal += $menuItem->price * $item['quantity'];
+        }
+
+        if (!empty($validated['promo_code'])) {
+            $promoCampaign = PromoCampaign::where('promo_code', $validated['promo_code'])
+                ->where('shop_id', $shop->id)->where('is_active', true)->first();
+
+            if (!$promoCampaign) return response()->json(['message' => 'Invalid promo code.', 'status' => 400], 400);
+
+            $now = now();
+            if (($promoCampaign->start_date && $now->lt($promoCampaign->start_date)) ||
+                ($promoCampaign->end_date && $now->gt($promoCampaign->end_date))) {
+                return response()->json(['message' => 'Promo code not valid now.', 'status' => 400], 400);
+            }
+
+            switch ($promoCampaign->type) {
+                case 'percentage':
+                    $discountAmount = $orderTotal * ($promoCampaign->discount_value / 100);
+                    break;
+                case 'fixed':
+                    $discountAmount = min($promoCampaign->discount_value, $orderTotal);
+                    break;
+                case 'bogo':
+                    $discountAmount = $this->calculateBogoDiscount($validated['items'], $promoCampaign);
+                    break;
+            }
+
+            $orderTotal -= $discountAmount;
+        }
+
+        $isFreePlan = $this->hasFreeSubscription($shop);
+        $commission = $isFreePlan ? $orderTotal * 0.05 : 0;
+
+        $reference = 'ORD-' . strtoupper(Str::random(10));
+        $callbackUrl = route('paystack.callback');
+
+        $orderTotal += 13; // Platform fee
+
+        $paymentRequest = Paystack::getAuthorizationUrl([
+            'amount' => round(($orderTotal + $discountAmount) * 100),
+            'email' => $validated['email'] ?? 'customer@orderrave.ng',
+            'reference' => $reference,
+            'callback_url' => $callbackUrl,
+            'metadata' => [
+                'shop_id' => $shop->id,
+                'commission' => $commission,
+                'is_free_plan' => $isFreePlan,
+                'payload' => $validated,
+                'user_id' => $request->user_id ?? null,
+                'context' => 'order'
+            ]
+        ])->url;
+
+        return response()->json(['paystack_url' => $paymentRequest], 200);
+    }
+
+    public function finalizeOrder($validated, $shop, $userId, $commission, $reference)
+    {
+        $orderTotal = 0;
+        foreach ($validated['items'] as $item) {
+            $menuItem = MenuItem::find($item['menu_item_id']);
+            $orderTotal += $menuItem->price * $item['quantity'];
+        }
+
+        $trackingId = Str::random(12);
+        $order = Order::create([
+            'user_id' => $userId,
+            'shop_id' => $validated['shopId'],
+            'order_number' => strtoupper(uniqid('ORD-')),
+            'order_status' => 'completed',
+            'order_type' => $validated['type'],
+            'order_total' => $orderTotal,
+            'discount_amount' => 0,
+            'net_total' => $orderTotal,
+            'commission' => $commission,
+            'net_amount' => $orderTotal - $commission,
+            'additional_notes' => $validated['note'] ?? '',
+            'address' => $validated['address'],
+            'user_phone' => $validated['phone'],
+            'user_name' => $validated['name'],
+            'table_number' => $validated['tableNumber'],
+            'hotel_room' => $validated['hotelRoom'],
+            'tracking_number' => $trackingId,
+            'commission_processed' => true,
+            'payment_status' => 'paid',
+            'payment_reference' => $reference,
+        ]);
+
+        foreach ($validated['items'] as $item) {
+            $order->items()->create([
+                'menu_item_id' => $item['menu_item_id'],
+                'quantity' => $item['quantity'],
+            ]);
+        }
+
+        return $order;
+    }
+
 
     private function calculateBogoDiscount($items, $promoCampaign)
     {

@@ -29,8 +29,13 @@ class Shop extends Model
         'account_number',
         'account_name',
         'account_bank',
+        'account_bank_code',
         'status',
         'free_trial',
+        'primary_color',
+        'secondary_color',
+        'card_background',
+        'paystack_recipient_code',
     ];
 
     protected $appends = ['image_url', 'average_rating', 'ratings_count'];
@@ -113,6 +118,16 @@ class Shop extends Model
     public function menuViews()
     {
         return $this->hasMany(MenuView::class);
+    }
+
+    public function paymentHistories()
+    {
+        return $this->hasMany(PaymentHistory::class);
+    }
+    
+    public function failedPayouts()
+    {
+        return $this->hasMany(FailedPayout::class, 'shop_id');
     }
 
     public function getPopularMenuItems()

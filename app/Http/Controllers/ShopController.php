@@ -70,9 +70,9 @@ class ShopController extends Controller
             'basicInfo.businessName' => 'required|string|max:255',
             'basicInfo.businessType' => 'required|string|max:255',
             'basicInfo.phone' => 'required|string|max:20',
-            'basicInfo.address' => 'required|string',
-            'basicInfo.city' => 'required|string',
-            'basicInfo.state' => 'required|string',
+            'basicInfo.address' => 'string',
+            'basicInfo.city' => 'string',
+            'basicInfo.state' => 'string',
             'basicInfo.termsAccepted' => 'required|boolean',
             'hours' => 'required|array',
             'hours.opening_time' => 'nullable|string',
@@ -86,8 +86,11 @@ class ShopController extends Controller
             'payment.bankDetails.accountNumber' => 'nullable|string',
             'payment.bankDetails.accountName' => 'nullable|string',
             'payment.bankDetails.bankName' => 'nullable|string',
+            'payment.bankDetails.bankCode' => 'nullable|string',
             'branding' => 'nullable|array',
         ]);
+
+        // dd($request->all());
 
         // Check if user exists first
         if (User::where('email', $request->basicInfo['email'])->exists()) {
@@ -105,12 +108,13 @@ class ShopController extends Controller
                 'shop_name' => $request->basicInfo['businessName'],
                 'category' => $request->basicInfo['businessType'],
                 'address' => $request->basicInfo['address'],
-                'city' => $request->basicInfo['city'],
-                'state' => $request->basicInfo['state'],
+                'city' => $request->basicInfo['city'] ?? null,
+                'state' => $request->basicInfo['state'] ?? null,
                 'country' => 'Nigeria',
                 'account_number' => $request->payment['bankDetails']['accountNumber'],
                 'account_name' => $request->payment['bankDetails']['accountName'],
                 'account_bank' => $request->payment['bankDetails']['bankName'],
+                'account_bank_code' => $request->payment['bankDetails']['bankCode'],
                 'phone_number' => $request->basicInfo['phone'],
                 'email' => $request->basicInfo['email'],
                 'opening_time' => $request->hours['opening_time'],
@@ -583,6 +587,38 @@ class ShopController extends Controller
             return response()->json($shop);
         } catch (\Exception $e) {
             return response()->json(['message' => 'An error occurred while activating the free subscription', 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    public function updateStyling(Request $request)
+    {
+        try {
+
+          $validated = $request->validate([
+            'primary_color' => 'required|string|regex:/^#[0-9A-Fa-f]{6}$/',
+            'secondary_color' => 'required|string|regex:/^#[0-9A-Fa-f]{6}$/',
+            'card_background' => 'required|string|regex:/^#[0-9A-Fa-f]{6}$/',
+        ]);
+
+        $shop = Shop::where('id', $request->shop_id)->first();
+
+        if (!$shop) {
+            return response()->json(['message' => 'Shop not found'], 404);
+        }
+
+        $shop->update([
+            'primary_color' => $request->primary_color,
+            'secondary_color' => $request->secondary_color,
+            'card_background' => $request->card_background,
+        ]);
+
+        return response()->json([
+            'message' => 'Styling updated successfully',
+            'data' => $shop
+        ], 200);
+
+     } catch (\Throwable $th) {
+            return response()->json(['message' => 'An error occurred while updating the styling', 'error' => $th->getMessage()], 500);
         }
     }
 }

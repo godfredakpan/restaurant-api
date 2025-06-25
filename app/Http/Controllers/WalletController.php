@@ -71,52 +71,79 @@ class WalletController extends Controller
         ]);
     }
 
-    public function handlePaymentCallback()
-    {
-        $paymentDetails = Paystack::getPaymentData();
+    // public function handlePaymentCallback(Request $request)
+    // {
+    //     $paymentDetails = Paystack::getPaymentData();
 
-        if (!$paymentDetails['status']) {
-            return response()->json(['message' => 'Payment failed'], 400);
-        }
+    //     if (!$paymentDetails['status']) {
+    //         return response()->json(['message' => 'Payment failed'], 400);
+    //     }
 
-        $reference = $paymentDetails['data']['reference'];
-        $transaction = WalletTransaction::where('reference', $reference)->first();
+    //     $metadata = $paymentDetails['data']['metadata'];
+    //     $reference = $paymentDetails['data']['reference'];
 
-        if (!$transaction) {
-            return redirect('https://app.orderrave.ng/settings/wallet')->with('message', 'Transaction not found');
-            // return response()->json(['message' => 'Transaction not found'], 404);
-        }
+    //     if (($metadata['context'] ?? '') === 'order') {
+    //         $shop = Shop::with(['admin.wallet'])->findOrFail($metadata['shop_id']);
+    //         $commission = $metadata['commission'];
 
-        if ($transaction->status === 'completed') {
-            return redirect('https://app.orderrave.ng/settings/wallet')->with('message', 'Transaction already completed');
-            // return response()->json(['message' => 'Transaction already processed']);
-        }
+    //         $order = $this->finalizeOrder($metadata['payload'], $shop, $metadata['user_id'], $commission);
 
-        if ($paymentDetails['data']['status'] === 'success') {
-            $amount = $paymentDetails['data']['amount'] / 100;
-            $wallet = $transaction->wallet;
+    //         if ($metadata['is_free_plan']) {
+    //             $walletBalance = $shop->admin->wallet->balance ?? 0;
+    //             if ($walletBalance >= $commission) {
+    //                 $shop->admin->wallet->decrement('balance', $commission);
+    //             } else {
+    //                 (new VendorPayoutService())->payVendor($order);
+    //             }
+    //         }
 
-            $transaction->update([
-                'status' => 'completed',
-                'meta' => array_merge($transaction->meta ?? [], [
-                    'gateway_response' => $paymentDetails['data']['gateway_response'],
-                    'paid_at' => $paymentDetails['data']['paid_at'],
-                    'payment_method' => $paymentDetails['data']['channel'] ?? null,
-                ])
-            ]);
+    //         PaymentHistory::create([
+    //             'order_id' => $order->id,
+    //             'vendor_id' => $shop->admin->id,
+    //             'amount' => $paymentDetails['data']['amount'] / 100,
+    //             'reference' => $reference,
+    //             'channel' => $paymentDetails['data']['channel'] ?? 'unknown',
+    //             'status' => 'success',
+    //         ]);
 
-            $wallet->deposit($amount, $reference);
+    //         return redirect('https://app.orderrave.ng/orders/success?ref=' . $reference);
+    //     } else {
+    //         // fallback: treat as wallet funding (existing logic)
+    //         $transaction = WalletTransaction::where('reference', $reference)->first();
 
-            return redirect('https://app.orderrave.ng/settings/wallet')->with('message', 'Wallet funded successfully');
+    //         if (!$transaction) {
+    //             return redirect('https://app.orderrave.ng/settings/wallet')->with('message', 'Transaction not found');
+    //         }
 
-        }
+    //         if ($transaction->status === 'completed') {
+    //             return redirect('https://app.orderrave.ng/settings/wallet')->with('message', 'Transaction already completed');
+    //         }
 
-        $transaction->update([
-            'status' => 'failed',
-            'reference' => $reference // Set reference even for failed transactions
-        ]);
-        return response()->json(['message' => 'Payment failed'], 400);
-    }
+    //         if ($paymentDetails['data']['status'] === 'success') {
+    //             $amount = $paymentDetails['data']['amount'] / 100;
+    //             $wallet = $transaction->wallet;
+
+    //             $transaction->update([
+    //                 'status' => 'completed',
+    //                 'meta' => array_merge($transaction->meta ?? [], [
+    //                     'gateway_response' => $paymentDetails['data']['gateway_response'],
+    //                     'paid_at' => $paymentDetails['data']['paid_at'],
+    //                     'payment_method' => $paymentDetails['data']['channel'] ?? null,
+    //                 ])
+    //             ]);
+
+    //             $wallet->deposit($amount, $reference);
+
+    //             return redirect('https://app.orderrave.ng/settings/wallet')->with('message', 'Wallet funded successfully');
+    //         }
+
+    //         $transaction->update([
+    //             'status' => 'failed',
+    //             'reference' => $reference
+    //         ]);
+    //         return redirect('https://app.orderrave.ng/settings/wallet')->with('message', 'Payment failed');
+    //     }
+    // }
 
 
     public function withdraw(Request $request)

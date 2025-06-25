@@ -19,7 +19,7 @@ Route::get('/', function () {
     return response()->json(['name' => 'OrderRave Solutions Ltd',  'version' => '1.0.0', 'description' => 'OrderRave API : Bring your Restaurant Menu to Life with OrderRave', 'message' => 'Sign up to get started: https://orderrave.ng',], 202);
 });
 
-Route::get('/wallet/callback', [App\Http\Controllers\WalletController::class, 'handlePaymentCallback']);
+Route::get('/paystack/callback', [App\Http\Controllers\PaymentCallbackController::class, 'handle'])->name('paystack.callback');
 
 
 // Route::get('/authenticated', function (){

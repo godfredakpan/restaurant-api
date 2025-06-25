@@ -29,7 +29,8 @@ class Order extends Model
         'net_amount',
         'commission_processed',
         'promo_campaign_id',
-        'promo_code'
+        'promo_code',
+        'payment_reference',
     ];
 
 

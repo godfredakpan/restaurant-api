@@ -1,0 +1,98 @@
+<?php
+
+
+namespace App\Http\Controllers;
+
+use Illuminate\Http\Request;
+use App\Models\{WalletTransaction, Shop, PaymentHistory};
+use App\Services\VendorPayoutService;
+use Unicodeveloper\Paystack\Facades\Paystack;
+
+class PaymentCallbackController extends Controller
+{
+    public function handle(Request $request)
+    {
+        $paymentDetails = Paystack::getPaymentData();
+
+        if (!$paymentDetails['status']) {
+            return response()->json(['message' => 'Payment failed'], 400);
+        }
+
+        $metadata = $paymentDetails['data']['metadata'] ?? [];
+        $reference = $paymentDetails['data']['reference'];
+
+        // 🚀 Handle Order payment
+        if (($metadata['context'] ?? '') === 'order') {
+            $shop = Shop::with(['admin.wallet'])->findOrFail($metadata['shop_id']);
+            $commission = $metadata['commission'];
+            $isFreePlan = $metadata['is_free_plan'] ?? false;
+
+            $orderService = app(\App\Http\Controllers\OrderController::class);
+            $order = $orderService->finalizeOrder($metadata['payload'], $shop, $metadata['user_id'], $commission, $reference);
+
+            $totalPaid = $paymentDetails['data']['amount'] / 100;
+            $vendorAmount = $isFreePlan ? ($totalPaid - $commission) : $totalPaid;
+            $payoutStatus = 'failed';
+
+            // Step 1: Handle commission deduction (free plans only)
+            if ($isFreePlan) {
+                $walletBalance = $shop->admin->wallet->balance ?? 0;
+
+                if ($walletBalance >= $commission) {
+                    $shop->admin->wallet->decrement('balance', $commission);
+                    (new VendorPayoutService())->payVendor($order);
+                    $payoutStatus = 'processing';
+                } else {
+                    (new VendorPayoutService())->payVendorFromPaystack($vendorAmount, $order);
+                    $payoutStatus = 'processing';
+                }
+            } else {
+                (new VendorPayoutService())->payVendor($order);
+                $payoutStatus = 'processing';
+            }
+
+            // Record payment history (actual vendor payout amount)
+            PaymentHistory::create([
+                'order_id' => $order->id,
+                'shop_id' => $shop->id,
+                'amount' => $vendorAmount, // vendor share only
+                'reference' => $reference,
+                'channel' => $paymentDetails['data']['channel'] ?? 'unknown',
+                'status' => $payoutStatus,
+            ]);
+
+            return redirect('https://www.orderrave.ng/stores/' . $shop->slug . '/order-confirmation?tid=' . $order->tracking_number);
+        }
+
+
+        // 💳 Handle Wallet top-up
+        $transaction = WalletTransaction::where('reference', $reference)->first();
+        if (!$transaction) {
+            return redirect('https://app.orderrave.ng/settings/wallet')->with('message', 'Transaction not found');
+        }
+
+        if ($transaction->status === 'completed') {
+            return redirect('https://app.orderrave.ng/settings/wallet')->with('message', 'Transaction already completed');
+        }
+
+        if ($paymentDetails['data']['status'] === 'success') {
+            $amount = $paymentDetails['data']['amount'] / 100;
+            $wallet = $transaction->wallet;
+
+            $transaction->update([
+                'status' => 'completed',
+                'meta' => array_merge($transaction->meta ?? [], [
+                    'gateway_response' => $paymentDetails['data']['gateway_response'],
+                    'paid_at' => $paymentDetails['data']['paid_at'],
+                    'payment_method' => $paymentDetails['data']['channel'] ?? null,
+                ])
+            ]);
+
+            $wallet->deposit($amount, $reference);
+            return redirect('https://app.orderrave.ng/settings/wallet')->with('message', 'Wallet funded successfully');
+        }
+
+        $transaction->update(['status' => 'failed']);
+        return redirect('https://app.orderrave.ng/settings/wallet')->with('message', 'Payment failed');
+    }
+}
