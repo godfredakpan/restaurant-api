@@ -301,6 +301,9 @@ class OrderController extends Controller
             $orderTotal += $menuItem->price * $item['quantity'];
         }
 
+        // minus platform fee
+        // $orderTotal -= 20;
+
         $trackingId = Str::random(12);
         $order = Order::create([
             'user_id' => $userId,
@@ -472,7 +475,7 @@ class OrderController extends Controller
                 },
                 'rating',
                 'shop' => function ($query) {
-                    $query->select('id', 'shop_name', 'address');
+                    $query->select('id', 'shop_name', 'address','email');
                 }
             ])
             ->first(); 
@@ -481,7 +484,16 @@ class OrderController extends Controller
             return response()->json(['error' => 'Order not found'], 404);
         }
 
-        $order->items->map(function ($item) {
+        $user = User::find($order->user_id);
+        if ($user) {
+            $order->user_email = $user->email;
+        } else {
+            $order->user_email = null;
+        }
+
+        $order->item_details = '';
+        $order->items->map(function ($item) use (&$order) {
+            $order->item_details .= "- {$item->menuItem->name} (Quantity: {$item->quantity}, Price: ₦{$item->menuItem->price})\n";
             $item->product_name = $item->menuItem->name;
             $item->product_image = $item->menuItem->image_url;
             $item->product_amount = $item->menuItem->price;
@@ -610,8 +622,8 @@ class OrderController extends Controller
 
         $order = QRCodeOrder::create($validator);
         
-        $notificationController = new EmailController();
-        $notificationController->sendQROrderNotification($request->email, $order);
+        // $notificationController = new EmailController();
+        // $notificationController->sendQROrderNotification($request->email, $order);
         
         return response()->json(['message' => 'Order submitted successfully!', 'order' => $order], 201);
     }

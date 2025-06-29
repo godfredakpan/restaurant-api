@@ -16,7 +16,7 @@ class CreatePaymentHistoriesTable extends Migration
         Schema::create('payment_history', function (Blueprint $table) {
             $table->id();
             $table->foreignId('order_id')->constrained()->onDelete('cascade');
-            $table->foreignId('shop_id')->constrained('users')->onDelete('cascade');
+            $table->foreignId('shop_id')->constrained('shops')->onDelete('cascade');
             $table->string('reference');
             $table->decimal('amount', 12, 2);
             $table->string('channel')->nullable();

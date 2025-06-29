@@ -452,6 +452,10 @@ class ShopController extends Controller
             'account_number' => 'nullable|string',
             'account_name' => 'nullable|string',
             'account_bank' => 'nullable|string',
+            'account_bank_code' => 'nullable|string',
+            'primary_color' => 'nullable|string|regex:/^#[0-9A-Fa-f]{6}$/',
+            'secondary_color' => 'nullable|string|regex:/^#[0-9A-Fa-f]{6}$/',
+            'card_background' => 'nullable|string',
         ]);
 
         $shop = Shop::where('id', $id)->first();

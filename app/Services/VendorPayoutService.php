@@ -80,6 +80,9 @@ class VendorPayoutService
         } else {
             $error = $response->json('message') ?? 'Unknown failure';
 
+            // minus platform fee
+            $amount -= 20;
+            
             FailedPayout::updateOrCreate(
                     ['order_id' => $order->id, 'resolved' => false],
                     [
